@@ -38,21 +38,16 @@ logger = logging.getLogger('jugalbandi_api')
 promptsInMemoryDomainQues = []
 promptsInMemoryTechQues = []
 
-score_language_mapping =  {
-    'en': 0.41,
-    'hi': 0.35,
-    'kn': 0.26
-}
 default_language = 'en'
 source_default_msg = {
     'en': "Here are some references links that you may enjoy:",
     'hi': "यहां कुछ संदर्भ लिंक दिए गए हैं जिनका आप आनंद ले सकते हैं:",
     'kn': "ನೀವು ಆನಂದಿಸಬಹುದಾದ ಕೆಲವು ಉಲ್ಲೇಖ ಲಿಂಕ್‌ಗಳು ಇಲ್ಲಿವೆ:"
 }
-
-marqo_url = "http://localhost:8882"
-marqo_discovery_index_name = "sakhi_discovery_all"
-marqo_converse_index_name = "sakhi_converse_english"
+load_dotenv()
+marqo_url = os.environ["MARQO_URL"]
+marqo_discovery_index_name = os.environ["MARQO_DISCOVERY_INDEX_NAME"]
+marqo_converse_index_name = os.environ["MARQO_CONVERSE_INDEX_NAME"]
 marqoClient = marqo.Client(url=marqo_url)
 
 def langchain_indexing(uuid_number):
