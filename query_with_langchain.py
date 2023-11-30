@@ -6,6 +6,8 @@ from langchain.docstore.document import Document
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
+from langchain.vectorstores.marqo import Marqo
+import marqo
 from langchain.prompts.prompt import PromptTemplate
 from langchain.llms.openai import OpenAI
 from langchain.chains.llm import LLMChain
@@ -18,6 +20,12 @@ from io import StringIO
 import time
 from dotenv import load_dotenv
 from openai import OpenAI
+from typing import (
+    Any,
+    Dict,
+    List,
+    Tuple
+)
 
 log_format = '%(asctime)s - %(thread)d - %(threadName)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(
@@ -30,22 +38,17 @@ logger = logging.getLogger('jugalbandi_api')
 promptsInMemoryDomainQues = []
 promptsInMemoryTechQues = []
 
-score_language_mapping =  {
-    'en': 0.41,
-    'hi': 0.35,
-    'kn': 0.26
-}
 default_language = 'en'
 source_default_msg = {
     'en': "Here are some references links that you may enjoy:",
     'hi': "यहां कुछ संदर्भ लिंक दिए गए हैं जिनका आप आनंद ले सकते हैं:",
     'kn': "ನೀವು ಆನಂದಿಸಬಹುದಾದ ಕೆಲವು ಉಲ್ಲೇಖ ಲಿಂಕ್‌ಗಳು ಇಲ್ಲಿವೆ:"
 }
-search_default_msg  = {
-    'en': "I'm sorry, but I don't have enough information to provide a specific answer for your question. Please provide more information or context about what you are referring to.",
-    'hi': "मुझे खेद है, लेकिन आपके प्रश्न का विशिष्ट उत्तर देने के लिए मेरे पास पर्याप्त जानकारी नहीं है। आप जिस चीज़ का उल्लेख कर रहे हैं उसके बारे में कृपया अधिक जानकारी या संदर्भ प्रदान करें।",
-    'kn': "ನನ್ನನ್ನು ಕ್ಷಮಿಸಿ, ಆದರೆ ನಿಮ್ಮ ಪ್ರಶ್ನೆಗೆ ನಿರ್ದಿಷ್ಟ ಉತ್ತರವನ್ನು ಒದಗಿಸಲು ನನ್ನ ಬಳಿ ಸಾಕಷ್ಟು ಮಾಹಿತಿ ಇಲ್ಲ. ದಯವಿಟ್ಟು ನೀವು ಯಾವುದನ್ನು ಉಲ್ಲೇಖಿಸುತ್ತಿದ್ದೀರಿ ಎಂಬುದರ ಕುರಿತು ಹೆಚ್ಚಿನ ಮಾಹಿತಿ ಅಥವಾ ಸಂದರ್ಭವನ್ನು ಒದಗಿಸಿ."
-}
+load_dotenv()
+marqo_url = os.environ["MARQO_URL"]
+marqo_discovery_index_name = os.environ["MARQO_DISCOVERY_INDEX_NAME"]
+marqo_converse_index_name = os.environ["MARQO_CONVERSE_INDEX_NAME"]
+marqoClient = marqo.Client(url=marqo_url)
 
 def langchain_indexing(uuid_number):
     sources = SimpleDirectoryReader(uuid_number, recursive=True).load_data()
@@ -311,71 +314,88 @@ def querying_with_langchain_gpt4_mcq(uuid_number, query, doCache):
             status_code = 422
         return None, None, None, error_message, status_code
 
-def querying_with_langchain_gpt3(uuid_number, query, converse: bool, language = default_language):
-    print("query ====>", query)
+def querying_with_langchain_gpt3(query, converse: bool):
     load_dotenv()
-    files_count = read_langchain_index_files(uuid_number)
-    if files_count == 2:
-        try:
-            search_index = FAISS.load_local(uuid_number, OpenAIEmbeddings(), distance_strategy = DistanceStrategy.COSINE)
-            documents = search_index.similarity_search_with_score(query, k=5)
-            # contexts = [document.page_content for document in documents]
-            score_threshold = score_language_mapping[language]
-            contexts =  [document.page_content for document, search_score in documents if round(search_score, 2) <= score_threshold]
-            print(str(documents))
-            if not contexts:
-                return search_default_msg[language], None, None, None, 200
+    try:
+        index_name = marqo_converse_index_name if converse else marqo_discovery_index_name
+        documents = []
+        if converse:    
+            search_index = Marqo(marqoClient, index_name, searchable_attributes=["text"])
+            documents = search_index.similarity_search_with_score(query, k=4)
             
-            if not converse:
-                return "", documents, None, None, 200
+        else:
+            results = marqoClient.index(index_name).search(q=query, limit=4, search_method="LEXICAL", searchable_attributes=["name", "keywords", "description", "themes", "languages"])
+            documents = construct_documents_from_results_with_score(results)
+        
+        if not documents:
+                return "I'm sorry, but I don't have enough information to provide a specific answer for your question. Please provide more information or context about what you are referring to.", None, None, None, 200
 
-            contexts = "\n\n---\n\n".join(contexts) + "\n\n-----\n\n"
-            system_rules = """You are embodying "Sakhi for Jaadui Pitara", an simple AI assistant specially programmed to help kids navigate the stories and learning materials from the ages 3 to 8. Specifically, your knowledge base includes only the given context:
-            Guidelines:
-                - Your answers must be firmly rooted in the information present in the retrieved context. Ensure that your responses are directly based on these resources, not on prior knowledge or assumptions.
-                - If no contexts are retrieved, then you should not answer the question.
-            
-            Given the following contexts:                
-            {context}
+        if not converse:
+            return "", documents, None, None, 200
+        print(str(documents))
+        contexts =  [document.page_content for document, search_score in documents]
+        contexts = "\n\n---\n\n".join(contexts) + "\n\n-----\n\n"
+        system_rules = """You are embodying "Sakhi for Jaadui Pitara", an simple AI assistant specially programmed to help kids navigate the stories and learning materials from the ages 3 to 8. Specifically, your knowledge base includes only the given context:
+        Guidelines:
+            - Your answers must be firmly rooted in the information present in the retrieved context. Ensure that your responses are directly based on these resources, not on prior knowledge or assumptions.
+            - If no contexts are retrieved, then you should not answer the question.
+        
+        Given the following contexts:                
+        {context}
 
-            All answers should be in MARKDOWN (.md) Format:"""
-            
+        All answers should be in MARKDOWN (.md) Format:"""
 
-            system_rules = system_rules.format(context=contexts)
-            # print("system_rules ====> ",  system_rules)
-            client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-            res = client.chat.completions.create(
-                model="gpt-3.5-turbo-16k",
-                messages=[
-                    {"role": "system", "content": system_rules},
-                    {"role": "user", "content": query},
-                ],
-            )
-            message = res.choices[0].message.model_dump()
-            response = message["content"]
-            # print("response ====> ", response)
-            # f = open("response.txt", "w")
-            # f.write(str(response))
-            # f.close()
-            return response, documents, None, None, 200
-
-        except openai.RateLimitError as e:
-            error_message = f"OpenAI API request exceeded rate limit: {e}"
-            status_code = 500
-        except (openai.APIError, openai.InternalServerError):
-            error_message = "Server is overloaded or unable to answer your request at the moment. Please try again later"
-            status_code = 503
-        except Exception as e:
-            error_message = str(e.__context__) + " and " + e.__str__()
-            status_code = 500
-    else:
-        error_message = "The UUID number is incorrect"
-        status_code = 422
+        system_rules = system_rules.format(context=contexts)
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        res = client.chat.completions.create(
+            model="gpt-3.5-turbo-16k",
+            messages=[
+                {"role": "system", "content": system_rules},
+                {"role": "user", "content": query},
+            ],
+        )
+        message = res.choices[0].message.model_dump()
+        response = message["content"]
+        return response, documents, None, None, 200
+    except openai.RateLimitError as e:
+        error_message = f"OpenAI API request exceeded rate limit: {e}"
+        status_code = 500
+    except (openai.APIError, openai.InternalServerError):
+        error_message = "Server is overloaded or unable to answer your request at the moment. Please try again later"
+        status_code = 503
+    except Exception as e:
+        error_message = str(e.__context__) + " and " + e.__str__()
+        status_code = 500
     return "", None, None, error_message, status_code
 
-def get_source_markdown(documents, language = default_language) -> str:
-    score_threshold = score_language_mapping[language]
-    sources =  [document.metadata for document, search_score in documents if round(search_score, 2) <= score_threshold]
+def construct_documents_from_results_with_score(
+        results: Dict[str, List[Dict[str, str]]]
+    ) -> List[Tuple[Document, Any]]:
+        """Helper to convert Marqo results into documents.
+
+        Args:
+            results (List[dict]): A marqo results object with the 'hits'.
+            include_scores (bool, optional): Include scores alongside documents.
+            Defaults to False.
+
+        Returns:
+            Union[List[Document], List[Tuple[Document, float]]]: The documents or
+            document score pairs if `include_scores` is true.
+        """
+        documents: List[Tuple[Document, Any]] = []
+        for res in results["hits"]:
+            try:
+                text = res["text"]
+            except:
+                text = ""
+            metadata = json.loads(res.get("metadata", "{}"))
+            documents.append(
+                (Document(page_content=text, metadata=metadata), res["_score"])
+            )
+        return documents
+
+def get_source_markdown(documents: List[Tuple[Document, Any]], language = default_language) -> str:
+    sources =  [document.metadata for document, search_score in documents]
     added_sources = []
     sources_markdown = f'\n\n{source_default_msg[language]} \n\n'
     counter = 1
