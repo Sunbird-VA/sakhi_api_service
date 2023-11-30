@@ -15,13 +15,12 @@ def process_incoming_voice(file_url, input_language):
     error_message = None
     try:
         regional_text = audio_input_to_text(file_url, input_language)
-        english_text = regional_text
-        # try:
-        #     english_text = indic_translation(text=regional_text, source=input_language, destination='en')
-        # except:
-        #     error_message = "Indic translation to English failed"
-        #     logger.info(error_message)
-        #     english_text = None
+        try:
+            english_text = indic_translation(text=regional_text, source=input_language, destination='en')
+        except:
+            error_message = "Indic translation to English failed"
+            logger.info(error_message)
+            english_text = None
     except:
         error_message = "Speech to text conversion API failed"
         logger.info(error_message)
@@ -36,7 +35,6 @@ def process_incoming_text(regional_text, input_language):
         english_text = indic_translation(text=regional_text, source=input_language, destination='en')
     except:
         error_message = "Indic translation to English failed"
-        logger.info(error_message)
         english_text = None
     return english_text, error_message
 

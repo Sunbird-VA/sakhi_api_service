@@ -232,8 +232,7 @@ def text_to_speech(language, text, gender='female'):
         }
 
         response = requests.request("POST", url, headers=headers, data=payload)
-        audio_content = response.json(
-        )["pipelineResponse"][0]['audio'][0]['audioContent']
+        audio_content = response.json()["pipelineResponse"][0]['audio'][0]['audioContent']
         audio_content = base64.b64decode(audio_content)
     except:
         audio_content = google_text_to_speech(text, language)
