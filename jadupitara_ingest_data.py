@@ -177,7 +177,7 @@ def index_all_documents(documents, index_name):
             print(f"Created {index_name} successfully.")
         except Exception:
             print(f"Index {index_name} exists.")
-        client.index(index_name).add_documents(documents, client_batch_size=50, tensor_fields = ["name", "description", "languages"]) # keywords, themes
+        client.index(index_name).add_documents(documents, client_batch_size=50, tensor_fields = ["name", "description"]) # keywords, themes
         error_message = None
         status_code = 200
     except Exception as e:
