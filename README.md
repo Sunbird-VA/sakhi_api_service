@@ -52,9 +52,7 @@ To use the code, you need to follow these steps:
     USERNAME=<your_login_username>
     PASSWORD=<your_login_password>
     AI4BHARAT_API_KEY=<your_ai4bharat_api_key>
-    MARQO_URL=<your_marqo_url>
-    MARQO_DISCOVERY_INDEX_NAME=<your_marqo_index_name_for_discovery>
-    MARQO_CONVERSE_INDEX_NAME=<your_marqo_index_name_for_conversation>
+    MARQO_URL=<your_marqo_db_url>
     ```
 
 # 🏃🏻 2. Running
@@ -153,7 +151,7 @@ Once the API is hit with proper request parameters, the **index.faiss** and **in
 
 #### Request
 
-Requires an input_language(Selection - English, Hindi, Kannada) and output_format(Selection - Text, Voice).
+Requires an index_id(string), input_language(Selection - English, Hindi, Kannada) and output_format(Selection - Text, Voice).
 
 Either of the query_text(string) or audio_url(string) should be present. If both the values are given, query_text is taken for consideration. Another requirement is that the input_language should be same as the one given in query_text and audio_url (i.e, if you select English in input_language, then your query_text and audio_url should contain queries in English). The audio_url should be publicly downloadable, otherwise the audio_url will not work.
 
