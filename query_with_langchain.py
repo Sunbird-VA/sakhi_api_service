@@ -52,8 +52,6 @@ source_default_msg = {
 
 load_dotenv()
 marqo_url = os.environ["MARQO_URL"]
-marqo_discovery_index_name = os.environ["MARQO_DISCOVERY_INDEX_NAME"]
-marqo_converse_index_name = os.environ["MARQO_CONVERSE_INDEX_NAME"]
 marqoClient = marqo.Client(url=marqo_url)
 
 def langchain_indexing(uuid_number):
