@@ -320,17 +320,16 @@ def querying_with_langchain_gpt4_mcq(uuid_number, query, doCache):
             status_code = 422
         return None, None, None, error_message, status_code
 
-def querying_with_langchain_gpt3(query, converse: bool, language = default_language):
+def querying_with_langchain_gpt3(index_id, query, converse: bool, language = default_language):
     load_dotenv()
     try:
-        index_name = marqo_converse_index_name if converse else marqo_discovery_index_name
         documents = []
         if converse:    
-            search_index = Marqo(marqoClient, index_name, searchable_attributes=["text"])
+            search_index = Marqo(marqoClient, index_id, searchable_attributes=["text"])
             documents = search_index.similarity_search_with_score(query, k=4)
             
         else:
-            results = marqoClient.index(index_name).search(q=query, limit=4, search_method="LEXICAL", searchable_attributes=["name", "keywords", "description", "themes", "languages"])
+            results = marqoClient.index(index_id).search(q=query, limit=4, search_method="LEXICAL", searchable_attributes=["name", "keywords", "description", "themes", "languages"])
             results = filter_documents(results, language)
             documents = construct_documents_from_results_with_score(results)
         
