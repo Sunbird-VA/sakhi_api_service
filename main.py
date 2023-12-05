@@ -226,11 +226,11 @@ async def upload_files(description: str, files: List[UploadFile] = File(...), us
     return {"uuid_number": str(uuid_number), "message": "Files uploading is successful"}
 
 @app.get("/query-using-voice", tags=["Q&A over Document Store"],  include_in_schema=True)
-async def query_with_voice_input(input_language: DropDownInputLanguage,
+async def query_with_voice_input(index_id: str, input_language: DropDownInputLanguage,
                                  output_format: DropdownOutputFormat, query_text: str = "",
                                  audio_url: str = "", converse: bool = False) -> ResponseForAudio:
     load_dotenv()
-    uuid_number = ""
+    uuid_number = index_id
     language = input_language.name
     output_medium = output_format.name
     is_audio = False
@@ -256,7 +256,7 @@ async def query_with_voice_input(input_language: DropDownInputLanguage,
             is_audio = True
 
         if text is not None:
-            answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(text, converse, language)
+            answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(index_id, text, converse, language)
             print(text, answer)
             if len(answer) != 0:
                 regional_answer, error_message = process_outgoing_text(answer, language)
@@ -410,21 +410,20 @@ async def query_using_langchain_with_gpt4_mcq(uuid_number: str, query_string: st
         return CSVResponse(answer)
 
 @app.get("/generate_answers", tags=["API for generating answers"], include_in_schema=True)
-async def query_using_langchain_with_gpt3(query_string: str, skip_cache : bool = False, converse: bool = False):
-    uuid_number = ""
-    lowercase_query_string = query_string.lower() + uuid_number
+async def query_using_langchain_with_gpt3(index_id: str, query_string: str, skip_cache : bool = False, converse: bool = False):
+    lowercase_query_string = query_string.lower() + index_id
     if (lowercase_query_string in cache) and (not skip_cache):
         print("Value in cache", lowercase_query_string)
         return cache[lowercase_query_string]
     else:
         load_dotenv()
         question_id = str(uuid.uuid1())
-        answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(query_string, converse)
+        answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(index_id, query_string, converse)
         if source_text is not None and not converse:
              answer = get_source_markdown(source_text)
 
         # engine = await create_engine()
-        await insert_sb_qa_logs(engine=db_engine, model_name="gpt-3.5-turbo-16k", uuid_number=uuid_number, question_id=question_id,
+        await insert_sb_qa_logs(engine=db_engine, model_name="gpt-3.5-turbo-16k", uuid_number=index_id, question_id=question_id,
                                                query=query_string, paraphrased_query=paraphrased_query, response=answer, source_text=str(source_text), error_message=error_message)
         # await engine.close()
         logger.info(f"Question ID =====> {question_id}")
