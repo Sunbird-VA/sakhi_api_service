@@ -256,7 +256,7 @@ async def query_with_voice_input(input_language: DropDownInputLanguage,
             is_audio = True
 
         if text is not None:
-            answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(text, converse)
+            answer, source_text, paraphrased_query, error_message, status_code = querying_with_langchain_gpt3(text, converse, language)
             print(text, answer)
             if len(answer) != 0:
                 regional_answer, error_message = process_outgoing_text(answer, language)

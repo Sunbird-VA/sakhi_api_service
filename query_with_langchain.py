@@ -39,11 +39,17 @@ promptsInMemoryDomainQues = []
 promptsInMemoryTechQues = []
 
 default_language = 'en'
+languages_mapping = {
+    'en': "English",
+    'hi': "Hindi",
+    'kn': "Kannada"
+}
 source_default_msg = {
     'en': "Here are some references links that you may enjoy:",
     'hi': "यहां कुछ संदर्भ लिंक दिए गए हैं जिनका आप आनंद ले सकते हैं:",
     'kn': "ನೀವು ಆನಂದಿಸಬಹುದಾದ ಕೆಲವು ಉಲ್ಲೇಖ ಲಿಂಕ್‌ಗಳು ಇಲ್ಲಿವೆ:"
 }
+
 load_dotenv()
 marqo_url = os.environ["MARQO_URL"]
 marqo_discovery_index_name = os.environ["MARQO_DISCOVERY_INDEX_NAME"]
@@ -314,7 +320,7 @@ def querying_with_langchain_gpt4_mcq(uuid_number, query, doCache):
             status_code = 422
         return None, None, None, error_message, status_code
 
-def querying_with_langchain_gpt3(query, converse: bool):
+def querying_with_langchain_gpt3(query, converse: bool, language = default_language):
     load_dotenv()
     try:
         index_name = marqo_converse_index_name if converse else marqo_discovery_index_name
@@ -325,6 +331,7 @@ def querying_with_langchain_gpt3(query, converse: bool):
             
         else:
             results = marqoClient.index(index_name).search(q=query, limit=4, search_method="LEXICAL", searchable_attributes=["name", "keywords", "description", "themes", "languages"])
+            results = filter_documents(results, language)
             documents = construct_documents_from_results_with_score(results)
         
         if not documents:
@@ -368,6 +375,11 @@ def querying_with_langchain_gpt3(query, converse: bool):
         status_code = 500
     return "", None, None, error_message, status_code
 
+def filter_documents(results, language):
+    language = languages_mapping[language]
+    results["hits"] = [document for document in results["hits"] if document["languages"] and language in document["languages"]]
+    return results
+
 def construct_documents_from_results_with_score(
         results: Dict[str, List[Dict[str, str]]]
     ) -> List[Tuple[Document, Any]]:
@@ -399,9 +411,9 @@ def get_source_markdown(documents: List[Tuple[Document, Any]], language = defaul
     added_sources = []
     sources_markdown = f'\n\n{source_default_msg[language]} \n\n'
     counter = 1
-    for data in sources:   
+    for data in sources:  
+        print(data) 
         if not data["identifier"] in added_sources:
-            print(data["name"])
             sources_markdown = sources_markdown + f'''{counter}. [{data["name"]}]({data["artifactUrl"]}) \n\n'''
             added_sources.append(data["identifier"])
             counter += 1
